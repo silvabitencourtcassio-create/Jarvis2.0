@@ -1,0 +1,967 @@
+# ============================================================
+#                    JARVIS 2.0
+#              ASSISTENTE PESSOAL COM IA
+# ============================================================
+#
+# Instalação:
+#
+# pip install openai python-dotenv SpeechRecognition
+# pip install pyttsx3 pyaudio
+#
+# Crie um arquivo .env na mesma pasta:
+#
+# OPENAI_API_KEY=sua_chave_aqui
+#
+# Execute:
+#
+# python jarvis.py
+#
+# ============================================================
+
+import os
+import json
+import threading
+import datetime
+import webbrowser
+import tkinter as tk
+from tkinter import scrolledtext, messagebox
+
+import speech_recognition as sr
+import pyttsx3
+from dotenv import load_dotenv
+from openai import OpenAI
+
+
+# ============================================================
+# CONFIGURAÇÃO
+# ============================================================
+
+load_dotenv()
+
+API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not API_KEY:
+    raise RuntimeError(
+        "OPENAI_API_KEY não encontrada.\n"
+        "Crie um arquivo .env e coloque sua chave nele."
+    )
+
+client = OpenAI(api_key=API_KEY)
+
+# Modelo da IA
+MODEL = "gpt-6-luna"
+
+# Arquivo de memória
+MEMORY_FILE = "jarvis_memory.json"
+
+
+# ============================================================
+# PERSONALIDADE
+# ============================================================
+
+JARVIS_INSTRUCTIONS = """
+Você é JARVIS, um assistente pessoal avançado.
+
+Personalidade:
+- Inteligente
+- Educado
+- Confiante
+- Objetivo
+- Futurista
+- Fala português brasileiro
+- Pode usar expressões como "Senhor" ocasionalmente
+- Não exagera nas respostas
+
+Você NÃO possui controle por voz do computador.
+Você não deve fingir que abriu programas ou executou ações
+que realmente não foram executadas.
+
+Responda de maneira natural e curta quando a pergunta for simples.
+Quando o usuário pedir explicações, seja mais detalhado.
+"""
+
+
+# ============================================================
+# MEMÓRIA
+# ============================================================
+
+def carregar_memoria():
+
+    if not os.path.exists(MEMORY_FILE):
+        return []
+
+    try:
+        with open(MEMORY_FILE, "r", encoding="utf-8") as arquivo:
+            return json.load(arquivo)
+
+    except:
+        return []
+
+
+def salvar_memoria():
+
+    try:
+        with open(MEMORY_FILE, "w", encoding="utf-8") as arquivo:
+            json.dump(
+                memoria,
+                arquivo,
+                ensure_ascii=False,
+                indent=2
+            )
+
+    except Exception as erro:
+        print("Erro ao salvar memória:", erro)
+
+
+memoria = carregar_memoria()
+
+
+# ============================================================
+# VOZ
+# ============================================================
+
+engine = pyttsx3.init()
+
+engine.setProperty("rate", 170)
+engine.setProperty("volume", 1.0)
+
+# Tentar selecionar voz masculina
+voices = engine.getProperty("voices")
+
+for voice in voices:
+
+    nome = voice.name.lower()
+
+    if any(
+        palavra in nome
+        for palavra in [
+            "male",
+            "david",
+            "mark",
+            "daniel",
+            "jorge"
+        ]
+    ):
+
+        engine.setProperty("voice", voice.id)
+        break
+
+
+def falar(texto):
+
+    try:
+
+        engine.say(texto)
+        engine.runAndWait()
+
+    except Exception as erro:
+
+        print("Erro na voz:", erro)
+
+
+# ============================================================
+# INTERFACE
+# ============================================================
+
+root = tk.Tk()
+
+root.title("JARVIS 2.0")
+root.geometry("1100x700")
+
+root.configure(bg="#05080d")
+
+root.minsize(900, 600)
+
+
+# ============================================================
+# CORES
+# ============================================================
+
+FUNDO = "#05080d"
+PAINEL = "#0a111a"
+PAINEL2 = "#0d1722"
+AZUL = "#00bfff"
+AZUL2 = "#008cff"
+BRANCO = "#eaf7ff"
+CINZA = "#7d93a5"
+VERDE = "#00ff9d"
+VERMELHO = "#ff3860"
+
+
+# ============================================================
+# CABEÇALHO
+# ============================================================
+
+header = tk.Frame(
+    root,
+    bg=PAINEL,
+    height=80
+)
+
+header.pack(
+    fill="x"
+)
+
+header.pack_propagate(False)
+
+
+titulo = tk.Label(
+    header,
+    text="J A R V I S",
+    font=("Arial", 25, "bold"),
+    fg=AZUL,
+    bg=PAINEL
+)
+
+titulo.pack(
+    side="left",
+    padx=30
+)
+
+
+status = tk.Label(
+    header,
+    text="● ONLINE",
+    font=("Arial", 11, "bold"),
+    fg=VERDE,
+    bg=PAINEL
+)
+
+status.pack(
+    side="right",
+    padx=30
+)
+
+
+# ============================================================
+# ÁREA PRINCIPAL
+# ============================================================
+
+main = tk.Frame(
+    root,
+    bg=FUNDO
+)
+
+main.pack(
+    fill="both",
+    expand=True,
+    padx=20,
+    pady=20
+)
+
+
+# ============================================================
+# PAINEL ESQUERDO
+# ============================================================
+
+left = tk.Frame(
+    main,
+    bg=PAINEL,
+    width=270
+)
+
+left.pack(
+    side="left",
+    fill="y",
+    padx=(0, 15)
+)
+
+left.pack_propagate(False)
+
+
+# ============================================================
+# NÚCLEO DO JARVIS
+# ============================================================
+
+canvas = tk.Canvas(
+    left,
+    width=250,
+    height=270,
+    bg=PAINEL,
+    highlightthickness=0
+)
+
+canvas.pack(
+    pady=20
+)
+
+
+def desenhar_nucleo():
+
+    canvas.delete("all")
+
+    centro_x = 125
+    centro_y = 130
+
+    # Anéis
+    for raio in [105, 85, 65, 45]:
+
+        canvas.create_oval(
+            centro_x - raio,
+            centro_y - raio,
+            centro_x + raio,
+            centro_y + raio,
+            outline=AZUL,
+            width=2
+        )
+
+    # Núcleo
+    canvas.create_oval(
+        92,
+        97,
+        158,
+        163,
+        fill="#061d2c",
+        outline=AZUL,
+        width=3
+    )
+
+    canvas.create_text(
+        centro_x,
+        centro_y,
+        text="J",
+        fill=BRANCO,
+        font=("Arial", 32, "bold")
+    )
+
+
+desenhar_nucleo()
+
+
+# ============================================================
+# INFORMAÇÕES
+# ============================================================
+
+info = tk.Label(
+    left,
+    text=(
+        "JARVIS 2.0\n\n"
+        "SISTEMA ONLINE\n"
+        "IA ATIVA\n"
+        "MICROFONE PRONTO\n"
+        "MEMÓRIA ATIVA"
+    ),
+    font=("Consolas", 10),
+    fg=CINZA,
+    bg=PAINEL,
+    justify="left"
+)
+
+info.pack(
+    padx=25,
+    anchor="w"
+)
+
+
+# ============================================================
+# BOTÕES RÁPIDOS
+# ============================================================
+
+def abrir_site(url):
+
+    webbrowser.open(url)
+
+
+def botao_menu(texto, comando):
+
+    botao = tk.Button(
+        left,
+        text=texto,
+        command=comando,
+        bg=PAINEL2,
+        fg=BRANCO,
+        activebackground=AZUL2,
+        activeforeground="white",
+        relief="flat",
+        font=("Arial", 10, "bold"),
+        cursor="hand2"
+    )
+
+    botao.pack(
+        fill="x",
+        padx=20,
+        pady=5
+    )
+
+
+botao_menu(
+    "🌐 Google",
+    lambda: abrir_site("https://google.com")
+)
+
+botao_menu(
+    "▶ YouTube",
+    lambda: abrir_site("https://youtube.com")
+)
+
+botao_menu(
+    "📷 Instagram",
+    lambda: abrir_site("https://instagram.com")
+)
+
+
+# ============================================================
+# PAINEL DIREITO
+# ============================================================
+
+right = tk.Frame(
+    main,
+    bg=FUNDO
+)
+
+right.pack(
+    side="right",
+    fill="both",
+    expand=True
+)
+
+
+# ============================================================
+# CHAT
+# ============================================================
+
+chat = scrolledtext.ScrolledText(
+    right,
+    bg=PAINEL,
+    fg=BRANCO,
+    insertbackground=AZUL,
+    font=("Consolas", 11),
+    relief="flat",
+    wrap="word"
+)
+
+chat.pack(
+    fill="both",
+    expand=True,
+    pady=(0, 15)
+)
+
+
+def adicionar_chat(remetente, texto):
+
+    chat.insert(
+        tk.END,
+        f"\n{remetente}\n",
+        "titulo"
+    )
+
+    chat.insert(
+        tk.END,
+        texto + "\n"
+    )
+
+    chat.see(
+        tk.END
+    )
+
+
+chat.tag_config(
+    "titulo",
+    foreground=AZUL,
+    font=("Consolas", 10, "bold")
+)
+
+
+adicionar_chat(
+    "JARVIS",
+    "Sistema iniciado. Como posso ajudar?"
+)
+
+
+# ============================================================
+# ENTRADA
+# ============================================================
+
+bottom = tk.Frame(
+    right,
+    bg=FUNDO
+)
+
+bottom.pack(
+    fill="x"
+)
+
+
+entrada = tk.Entry(
+    bottom,
+    bg=PAINEL,
+    fg=BRANCO,
+    insertbackground=AZUL,
+    font=("Arial", 12),
+    relief="flat"
+)
+
+entrada.pack(
+    side="left",
+    fill="x",
+    expand=True,
+    ipady=12,
+    padx=(0, 10)
+)
+
+
+# ============================================================
+# STATUS
+# ============================================================
+
+status_voz = tk.Label(
+    right,
+    text="Pronto para receber comandos.",
+    bg=FUNDO,
+    fg=CINZA,
+    font=("Arial", 9)
+)
+
+status_voz.pack(
+    anchor="w",
+    pady=(8, 0)
+)
+
+
+# ============================================================
+# RESPOSTA DA IA
+# ============================================================
+
+def perguntar_ia(pergunta):
+
+    try:
+
+        # Últimas mensagens para contexto
+        historico = memoria[-12:]
+
+        contexto = ""
+
+        for item in historico:
+
+            contexto += (
+                f"{item['role']}: "
+                f"{item['content']}\n"
+            )
+
+        prompt = f"""
+Histórico recente:
+
+{contexto}
+
+Nova mensagem do usuário:
+
+{pergunta}
+"""
+
+        resposta = client.responses.create(
+
+            model=MODEL,
+
+            instructions=JARVIS_INSTRUCTIONS,
+
+            input=prompt
+        )
+
+        texto = resposta.output_text
+
+        # Salvar memória
+        memoria.append({
+            "role": "user",
+            "content": pergunta
+        })
+
+        memoria.append({
+            "role": "assistant",
+            "content": texto
+        })
+
+        # Limitar memória
+        if len(memoria) > 100:
+
+            del memoria[:-100]
+
+        salvar_memoria()
+
+        return texto
+
+    except Exception as erro:
+
+        print(erro)
+
+        return (
+            "Senhor, não consegui acessar "
+            "minha inteligência artificial."
+        )
+
+
+# ============================================================
+# COMANDOS ESPECIAIS
+# ============================================================
+
+def executar_comando(comando):
+
+    texto = comando.lower().strip()
+
+    # ----------------------------------
+    # HORA
+    # ----------------------------------
+
+    if "que horas" in texto:
+
+        hora = datetime.datetime.now().strftime(
+            "%H:%M"
+        )
+
+        return f"Senhor, agora são {hora}."
+
+    # ----------------------------------
+    # DATA
+    # ----------------------------------
+
+    if (
+        "data de hoje" in texto
+        or "que dia é hoje" in texto
+    ):
+
+        data = datetime.datetime.now().strftime(
+            "%d/%m/%Y"
+        )
+
+        return f"Hoje é {data}."
+
+    # ----------------------------------
+    # GOOGLE
+    # ----------------------------------
+
+    if texto.startswith("pesquisar "):
+
+        pesquisa = texto.replace(
+            "pesquisar ",
+            "",
+            1
+        )
+
+        url = (
+            "https://www.google.com/search?q="
+            + pesquisa.replace(" ", "+")
+        )
+
+        webbrowser.open(url)
+
+        return f"Pesquisando por {pesquisa}."
+
+    # ----------------------------------
+    # YOUTUBE
+    # ----------------------------------
+
+    if "abrir youtube" in texto:
+
+        webbrowser.open(
+            "https://youtube.com"
+        )
+
+        return "YouTube aberto."
+
+    # ----------------------------------
+    # INSTAGRAM
+    # ----------------------------------
+
+    if "abrir instagram" in texto:
+
+        webbrowser.open(
+            "https://instagram.com"
+        )
+
+        return "Instagram aberto."
+
+    # ----------------------------------
+    # GOOGLE
+    # ----------------------------------
+
+    if "abrir google" in texto:
+
+        webbrowser.open(
+            "https://google.com"
+        )
+
+        return "Google aberto."
+
+    # ----------------------------------
+    # SPOTIFY
+    # ----------------------------------
+
+    if "abrir spotify" in texto:
+
+        webbrowser.open(
+            "https://open.spotify.com"
+        )
+
+        return "Spotify aberto."
+
+    # ----------------------------------
+    # LIMPAR CHAT
+    # ----------------------------------
+
+    if (
+        "limpar conversa" in texto
+        or "limpar chat" in texto
+    ):
+
+        chat.delete(
+            "1.0",
+            tk.END
+        )
+
+        return "Conversa limpa."
+
+    # ----------------------------------
+    # MEMÓRIA
+    # ----------------------------------
+
+    if "apagar memória" in texto:
+
+        memoria.clear()
+
+        salvar_memoria()
+
+        return "Memória apagada."
+
+    # ----------------------------------
+    # JARVIS NORMAL
+    # ----------------------------------
+
+    return perguntar_ia(comando)
+
+
+# ============================================================
+# ENVIAR MENSAGEM
+# ============================================================
+
+def enviar_mensagem():
+
+    pergunta = entrada.get().strip()
+
+    if not pergunta:
+        return
+
+    entrada.delete(
+        0,
+        tk.END
+    )
+
+    adicionar_chat(
+        "VOCÊ",
+        pergunta
+    )
+
+    status_voz.config(
+        text="JARVIS está processando..."
+    )
+
+    def processar():
+
+        resposta = executar_comando(
+            pergunta
+        )
+
+        root.after(
+            0,
+            lambda: finalizar_resposta(
+                resposta
+            )
+        )
+
+    threading.Thread(
+        target=processar,
+        daemon=True
+    ).start()
+
+
+def finalizar_resposta(resposta):
+
+    adicionar_chat(
+        "JARVIS",
+        resposta
+    )
+
+    status_voz.config(
+        text="Pronto para receber comandos."
+    )
+
+    # Falar sem travar interface
+    threading.Thread(
+        target=falar,
+        args=(resposta,),
+        daemon=True
+    ).start()
+
+
+# ============================================================
+# BOTÃO ENVIAR
+# ============================================================
+
+enviar = tk.Button(
+    bottom,
+    text="ENVIAR",
+    command=enviar_mensagem,
+    bg=AZUL2,
+    fg="white",
+    activebackground=AZUL,
+    activeforeground="white",
+    relief="flat",
+    font=("Arial", 10, "bold"),
+    cursor="hand2"
+)
+
+enviar.pack(
+    side="right",
+    ipadx=15,
+    ipady=8
+)
+
+
+# ============================================================
+# RECONHECIMENTO DE VOZ
+# ============================================================
+
+def ouvir_microfone():
+
+    def processo():
+
+        try:
+
+            status_voz.config(
+                text="🎙️ JARVIS está ouvindo..."
+            )
+
+            reconhecedor = sr.Recognizer()
+
+            with sr.Microphone() as source:
+
+                reconhecedor.adjust_for_ambient_noise(
+                    source,
+                    duration=0.5
+                )
+
+                audio = reconhecedor.listen(
+                    source,
+                    timeout=5,
+                    phrase_time_limit=12
+                )
+
+            texto = reconhecedor.recognize_google(
+                audio,
+                language="pt-BR"
+            )
+
+            root.after(
+                0,
+                lambda: receber_voz(texto)
+            )
+
+        except sr.WaitTimeoutError:
+
+            root.after(
+                0,
+                lambda: status_voz.config(
+                    text="Nenhuma fala detectada."
+                )
+            )
+
+        except sr.UnknownValueError:
+
+            root.after(
+                0,
+                lambda: status_voz.config(
+                    text="Não consegui entender."
+                )
+            )
+
+        except Exception as erro:
+
+            print(erro)
+
+            root.after(
+                0,
+                lambda: status_voz.config(
+                    text="Erro no microfone."
+                )
+            )
+
+    threading.Thread(
+        target=processo,
+        daemon=True
+    ).start()
+
+
+def receber_voz(texto):
+
+    entrada.delete(
+        0,
+        tk.END
+    )
+
+    entrada.insert(
+        0,
+        texto
+    )
+
+    enviar_mensagem()
+
+
+# ============================================================
+# BOTÃO MICROFONE
+# ============================================================
+
+microfone = tk.Button(
+    bottom,
+    text="🎙️",
+    command=ouvir_microfone,
+    bg=PAINEL2,
+    fg=AZUL,
+    activebackground=AZUL2,
+    activeforeground="white",
+    relief="flat",
+    font=("Arial", 16),
+    cursor="hand2"
+)
+
+microfone.pack(
+    side="right",
+    padx=(10, 0)
+)
+
+
+# ============================================================
+# ENTER PARA ENVIAR
+# ============================================================
+
+entrada.bind(
+    "<Return>",
+    lambda event: enviar_mensagem()
+)
+
+
+# ============================================================
+# RELÓGIO DA INTERFACE
+# ============================================================
+
+def atualizar_relogio():
+
+    agora = datetime.datetime.now().strftime(
+        "%H:%M:%S"
+    )
+
+    status.config(
+        text=f"● ONLINE  {agora}"
+    )
+
+    root.after(
+        1000,
+        atualizar_relogio
+    )
+
+
+atualizar_relogio()
+
+
+# ============================================================
+# INICIAR
+# ============================================================
+
+root.mainloop()
